@@ -1,0 +1,11 @@
+This is a simple text document for testing the flux-vector embeddings pipeline.
+
+The document processor should be able to extract this text and generate embeddings from it.
+
+Key features to test:
+- Text extraction from plain text files
+- Proper handling of line breaks and formatting
+- Embedding generation for simple content
+- Chunking strategies for longer documents
+
+This content will be used to validate that the embeddings package correctly processes text documents.

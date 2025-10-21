@@ -1,0 +1,76 @@
+import {
+  pipeline,
+  FeatureExtractionPipeline,
+  Tensor,
+  FeatureExtractionPipelineOptions,
+  ProgressCallback,
+} from "@huggingface/transformers";
+
+/**
+ * Interface for custom embedding engines.
+ * Implement this interface to use your own embedding model.
+ */
+export interface IEmbeddingEngine {
+  /**
+   * Generate an embedding for a given text.
+   * @param text The text to embed.
+   * @returns The embedding as a number array.
+   */
+  embed(text: string): Promise<number[]>;
+}
+
+/**
+ * This class uses the singleton pattern to ensure that only one instance
+ * of the embedding pipeline is ever created.
+ */
+class EmbeddingPipeline {
+  static task = "feature-extraction" as const;
+  static model: string = "Xenova/all-MiniLM-L6-v2";
+  static instance: FeatureExtractionPipeline | null = null;
+
+  /**
+   * Get the singleton instance of the embedding pipeline.
+   * @param progress_callback A function to track model loading progress.
+   */
+  static async getInstance(
+    progress_callback?: ProgressCallback
+  ): Promise<FeatureExtractionPipeline> {
+    if (this.instance === null) {
+      this.instance = await (pipeline as (task: string, model: string, options?: { progress_callback?: ProgressCallback }) => Promise<FeatureExtractionPipeline>)(this.task, this.model, { progress_callback });
+    }
+    return this.instance;
+  }
+}
+
+/**
+ * Default embedding engine using HuggingFace transformers.
+ * Uses Xenova/all-MiniLM-L6-v2 model which produces 384-dimension embeddings.
+ */
+export class DefaultEmbeddingEngine implements IEmbeddingEngine {
+  /**
+   * Helper function to embed a single piece of text.
+   * @param text The text to embed.
+   * @returns The 384-dimension embedding.
+   */
+  async embed(text: string): Promise<number[]> {
+    const extractor = await EmbeddingPipeline.getInstance();
+
+    // Compute the embedding
+    const output: Tensor = await extractor(text, {
+      pooling: "mean",    // Use mean pooling
+      normalize: true,    // Normalize the embedding
+    } as FeatureExtractionPipelineOptions);
+
+    // Extract the embedding data and convert to a standard array
+    return Array.from(output.data);
+  }
+}
+
+/**
+ * Singleton helper function for backward compatibility.
+ * Uses the default embedding engine.
+ */
+export async function embed(text: string): Promise<number[]> {
+  const engine = new DefaultEmbeddingEngine();
+  return engine.embed(text);
+}

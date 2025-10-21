@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Import Test</title>
+</head>
+<body>
+    <h1>Testing Imports...</h1>
+    <div id="result"></div>
+    <script type="module">
+        try {
+            const { DocumentProcessor } = await import('../../dist/document-processing/DocumentProcessor.js');
+            const VectorSearchManager = (await import('../../dist/embeddings/VectorSearchManager.js')).default;
+            const { DefaultEmbeddingEngine } = await import('../../dist/embeddings/EmbeddingPipeline.js');
+            
+            document.getElementById('result').innerHTML = `
+                <p style="color: green;">✓ All imports successful!</p>
+                <p>DocumentProcessor: ${typeof DocumentProcessor}</p>
+                <p>VectorSearchManager: ${typeof VectorSearchManager}</p>
+                <p>DefaultEmbeddingEngine: ${typeof DefaultEmbeddingEngine}</p>
+            `;
+        } catch (error) {
+            document.getElementById('result').innerHTML = `
+                <p style="color: red;">✗ Import failed:</p>
+                <pre>${error.message}\n${error.stack}</pre>
+            `;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flux Vector - Real Embedding Tester</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+        }
+
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f1ff;
+        }
+
+        .upload-area.dragover {
+            background: #e8e9ff;
+            border-color: #764ba2;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1em;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .progress {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .log {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 0.9em;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            padding: 3px 0;
+        }
+
+        .log-entry.error {
+            color: #ff6b6b;
+        }
+
+        .log-entry.success {
+            color: #51cf66;
+        }
+
+        .log-entry.info {
+            color: #74c0fc;
+        }
+
+        .results {
+            margin-top: 20px;
+        }
+
+        .result-item {
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #667eea;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .result-item .score {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.9em;
+            margin-right: 10px;
+        }
+
+        .result-item .text {
+            margin-top: 10px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .result-item .metadata {
+            margin-top: 8px;
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-card .number {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .label {
+            opacity: 0.9;
+        }
+
+        .file-list {
+            margin-top: 15px;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+
+        .file-item .name {
+            font-weight: 500;
+        }
+
+        .file-item .size {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Flux Vector - Real Embedding Tester</h1>
+            <p>Test document processing and semantic search with real ML models in your browser</p>
+        </div>
+
+        <div class="content">
+            <!-- Upload Section -->
+            <div class="section">
+                <h2>📁 Upload Documents</h2>
+                <div class="upload-area" id="uploadArea">
+                    <h3>📎 Drop files here or click to browse</h3>
+                    <p>Supports: PDF, TXT, MD, PNG, JPG (OCR enabled)</p>
+                    <input type="file" id="fileInput" multiple accept=".pdf,.txt,.md,.png,.jpg,.jpeg">
+                </div>
+                <div class="file-list" id="fileList"></div>
+                <div class="progress" id="progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill">0%</div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <button class="btn" id="processBtn" disabled>Process Documents</button>
+                    <button class="btn" id="clearBtn">Clear All</button>
+                </div>
+            </div>
+
+            <!-- Search Section -->
+            <div class="section">
+                <h2>🔍 Semantic Search</h2>
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Enter your search query..." />
+                    <button class="btn" id="searchBtn" disabled>Search</button>
+                </div>
+                <div class="results" id="searchResults"></div>
+            </div>
+
+            <!-- Statistics Section -->
+            <div class="section">
+                <h2>📊 Statistics</h2>
+                <div class="stats" id="stats">
+                    <div class="stat-card">
+                        <div class="number" id="statDocs">0</div>
+                        <div class="label">Documents</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="statChunks">0</div>
+                        <div class="label">Chunks</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="statIndexed">0</div>
+                        <div class="label">Indexed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="statSearches">0</div>
+                        <div class="label">Searches</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Console Log Section -->
+            <div class="section">
+                <h2>📋 Console Log</h2>
+                <div class="log" id="log"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+</body>
+</html>
