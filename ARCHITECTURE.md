@@ -105,8 +105,11 @@ sequenceDiagram
 - `VectorSearchManager.ts`: system façade that connects chunk ingestion, embedding, storage, and vector indexing:
   - `addDocument`: emits embedding progress, persists text+metadata to Dexie-backed `ContentStore`, and inserts vectors into Mememo. UUID generated via `uuid` when absent.
   - `search`: transforms cosine distance into similarity score (`1 - distance`), merges metadata, and safeguards empty-index queries.
-  - `deleteDocument` / `updateDocument` / `compactIndex`: manage soft deletes (`markDeleted`) and expensive rebuilds.
-  - `getStats`: introspects index health (active vs deleted nodes).
+  - `updateDocument`: validates document exists, regenerates embedding, updates vector in HNSW index, and updates text in ContentStore.
+  - `deleteDocument`: soft delete - removes from ContentStore, marks as deleted in HNSW (`markDeleted` flag), excluded from searches but kept in memory.
+  - `compactIndex`: expensive hard delete operation (O(n log n)) - rebuilds entire index with only active nodes, permanently removing soft-deleted nodes and reclaiming memory.
+  - `getDocument` / `hasDocument`: direct ContentStore lookups for document retrieval and existence checks.
+  - `getStats`: introspects index health (total, active, and deleted node counts).
 
 ### Content Storage (`embeddings/ContentStore.ts`)
 - Thin Dexie wrapper named `MyContentDatabase` with primary key `id`.
@@ -154,9 +157,12 @@ The HNSW implementation includes four major performance optimizations:
 - Persistence workflow:
   - When `useIndexedDB` is true, Mememo chooses `NodesInIndexedDB` for embedding storage.
   - Metadata regarding graph topology is saved in `indexMetadata` table (id = `graph`).
-  - `loadPersistedIndex` & `_initializeFromPersistedData` reconstruct graph structure on startup.
-  - **Default behavior**: `clearOnInit` defaults to `false`, preserving data across sessions. Pass `clearOnInit: true` to explicitly wipe data on initialization.
-  - **Incremental saves**: Use `incrementalSaveIndex()` for efficient persistence or enable autosave for automatic background saves.
+  - `saveIndex()`: serializes graph structure (layers, neighbors, connections) and configuration (m, efConstruction, distanceFn) to `indexMetadata` table.
+  - `loadPersistedIndex()` & `_initializeFromPersistedData`: reconstruct graph structure on startup by deserializing from `indexMetadata`.
+  - **Default behavior**: `clearOnInit` defaults to `true` (clears on init), set to `false` to enable persistence across sessions.
+  - **Incremental saves**: `incrementalSaveIndex()` tracks dirty nodes/layers via `Set<string>` and `Set<number>`, only saves changed portions (~90% faster for small updates).
+  - **Autosave**: `setAutosave(enabled, delayMs)` enables automatic background saves with configurable debouncing.
+  - **Storage**: Embeddings persist automatically in `mememo` table; graph structure persists in `indexMetadata` when `clearOnInit: false`.
 
 ```mermaid
 flowchart TB
@@ -186,16 +192,72 @@ flowchart TB
 - Use Dexie to persist documents and HNSW nodes in browser IndexedDB, enabling stateful experiences across sessions.
 - Incorporate worker threads (`workers/embedding.ts`, `mememo-worker.ts`) to offload heavy vector work without freezing the UI.
 
+### CRUD Operations Flow
+
+**Create**: `addDocument(text, id)` → embed → store in ContentStore → insert into HNSW → return ID
+
+**Read**: 
+- `getDocument(id)`: Direct ContentStore lookup (O(1))
+- `search(query, k)`: Embed query → HNSW search → fetch texts from ContentStore
+- `hasDocument(id)`: Checks both ContentStore and HNSW for active status
+
+**Update**: `updateDocument(id, newText)` → validate exists → re-embed → update HNSW vector → update ContentStore text
+
+**Delete**:
+- Soft: `deleteDocument(id)` → remove from ContentStore → `markDeleted` in HNSW (O(1), memory not reclaimed)
+- Hard: `compactIndex()` → rebuild index with only active nodes (O(n log n), reclaims memory)
+
+### Progress Callback Architecture
+
+**Model Loading Progress**: Emitted by `DefaultEmbeddingEngine` constructor callback with `{status, progress}` object tracking download and initialization.
+
+**Embedding Progress**: Optional callback parameter in `embed()` and `addDocument()` methods, reports 0%, 30%, 90%, 100% checkpoints:
+- 0%: Operation started
+- 30%: Model loaded (skipped after first use)
+- 90%: Embedding computation complete
+- 100%: Operation complete (stored and indexed)
+
+**Progress Flow**: Callbacks propagate from `EmbeddingPipeline` → `VectorSearchManager` → user code, enabling UI updates during long-running operations.
+
 ### Testing & Tooling
-- Jest test suite under `tests/` covers end-to-end ingestion, chunking, embedding, and search flows with a `MockEmbeddingEngine` for deterministic assertions.
-- `tests/ContentStore.crud.test.ts`, `tests/VectorSearchManager.test.ts`, etc., validate persistence and retrieval semantics.
-- `PROGRESS_CALLBACKS.md` documents progress reporting contract for both Node.js and browser callers.
+- Jest test suite under `tests/` covers end-to-end ingestion, chunking, embedding, search, and CRUD flows with a `MockEmbeddingEngine` for deterministic assertions.
+- `tests/ContentStore.crud.test.ts`, `tests/VectorSearchManager.test.ts`, etc., validate persistence, retrieval, and CRUD semantics.
+- Progress callback behavior tested via mock engines that emit deterministic progress events.
 
 ## IndexedDB Integration Details
 - `ContentStore` and `NodesInIndexedDB` each create their own Dexie instances (`MyContentDatabase`, `mememo-index-store`).
 - `NodesInIndexedDB` prefetches neighbor embeddings with configurable `prefetchSize` (auto-calculated from target memory, default 50 MB) to reduce round-trips.
 - Distance caching currently disabled by default (flagged for future optimization).
-- **`clearOnInit` defaults to `false`**: Data persists across sessions unless explicitly cleared with `clearOnInit: true`.
+- **`clearOnInit` defaults to `true`**: Data is cleared on initialization by default. Set `clearOnInit: false` to enable persistence across sessions.
+
+## Persistence Architecture
+
+### IndexedDB Storage Structure
+
+**Three separate databases:**
+1. `MyContentDatabase` (ContentStore): Stores original text documents in `documents` table with schema `{id: string, text: string}`
+2. `mememo-index-store` (HNSW nodes): Stores embeddings in `mememo` table with schema `{key: string, value: number[]}` 
+3. `mememo-index-store` (Graph metadata): Stores graph structure in `indexMetadata` table with schema `{id: string, data: MememoIndexJSON}`
+
+### Persistence States
+
+**clearOnInit: true (default)**:
+- IndexedDB cleared on each initialization
+- Fresh start every session
+- Use for development/testing or when persistence not needed
+
+**clearOnInit: false (persistence mode)**:
+- Graph structure automatically loaded from `indexMetadata` on construction
+- Embeddings already in `mememo` table
+- Requires async initialization wait (~100ms)
+- Use for production apps needing cross-session persistence
+
+### Save/Load Workflow
+
+```
+Save: HNSW graph → serialize to JSON → store in indexMetadata table
+Load: Read from indexMetadata → deserialize JSON → reconstruct graph layers → connect to existing embeddings
+```
 
 ## Identified Weaknesses & Risks
 1. **Shared Dexie Schemas**: Database names (`MyContentDatabase`, `mememo-index-store`) are hard-coded. Multiple concurrent instances in the same origin risk clobbering each other; version upgrades require manual migration logic.
@@ -207,6 +269,8 @@ flowchart TB
 7. ~~**Mememo Distance Cache Disabled**~~: **RESOLVED** - LRU cache system now actively manages node caching with automatic eviction.
 8. **Index Compaction Cost**: `VectorSearchManager.compactIndex` rebuilds the entire index synchronously, risking long stalls in browser contexts. Offloading to a worker or providing progress feedback would improve UX. *Note: Incremental saves reduce need for frequent compaction.*
 9. **Security Considerations**: The browser playground loads external model assets and worker scripts; CSP headers or integrity checks are not configured, which might be relevant for production deployments.
+10. **Update Operation Cost**: `updateDocument` requires full re-embedding and graph connection updates (O(log n)), not optimized for frequent updates.
+11. **Soft Delete Memory Leak**: Soft-deleted nodes remain in memory until compaction. Long-running apps with many deletes should periodically call `compactIndex()`.
 
 ## Future Enhancements (Opportunities)
 - Introduce configurable persistence adapters so downstream integrations can target SQLite/LevelDB in Node.js instead of Dexie’s abstractions.

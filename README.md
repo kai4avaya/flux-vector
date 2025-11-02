@@ -232,6 +232,31 @@ Searches for similar documents.
 #### `async size(): Promise<number>`
 Returns the total number of indexed documents.
 
+#### `async getDocument(id: string): Promise<IDocument | undefined>`
+Retrieves a document by ID.
+
+**Returns:** Document object with `id` and `text`, or `undefined` if not found.
+
+#### `async hasDocument(id: string): Promise<boolean>`
+Checks if a document exists and is active (not deleted).
+
+#### `async updateDocument(id: string, newText: string): Promise<void>`
+Updates an existing document. Regenerates the embedding and updates both ContentStore and HNSW index.
+
+**Throws:** Error if document doesn't exist.
+
+#### `async deleteDocument(id: string): Promise<void>`
+Soft deletes a document. Removes from ContentStore and marks as deleted in HNSW (excluded from searches).
+
+#### `async compactIndex(): Promise<void>`
+Permanently removes all soft-deleted nodes from the index, reclaiming memory. Expensive operation (O(n log n)).
+
+#### `async getStats(): Promise<IndexStats>`
+Returns index statistics:
+- `totalNodes`: Total nodes (active + deleted)
+- `activeNodes`: Active nodes (not deleted)
+- `deletedNodes`: Soft-deleted nodes
+
 ### IEmbeddingEngine Interface
 
 ```typescript
@@ -576,9 +601,19 @@ console.log(`Indexed documents: ${totalDocs}`);
 
 ### Supported Document Formats
 
-- **PDF**: Text extraction + OCR fallback for scanned documents (via pdf.js)
-- **Images**: PNG, JPEG, GIF, BMP, TIFF with automatic OCR (via Tesseract.js)
-- **Text**: Plain text, Markdown, JSON, CSV, and other text formats
+| Format | MIME Type | Example |
+|--------|-----------|---------|
+| PDF | `application/pdf` | `processor.processDocument(file, 'application/pdf')` |
+| Text | `text/plain` | `processor.processDocument(file, 'text/plain')` |
+| Markdown | `text/markdown` | `processor.processDocument(file, 'text/markdown')` |
+| JSON | `application/json` | `processor.processDocument(file, 'application/json')` |
+| PNG | `image/png` | `processor.processDocument(file, 'image/png')` |
+| JPEG | `image/jpeg` | `processor.processDocument(file, 'image/jpeg')` |
+
+**Note**: 
+- PDFs use pdf.js for text extraction, with OCR fallback for scanned documents
+- Images use Tesseract.js for automatic OCR text extraction
+- All text formats are supported via TextDecoder
 
 See [document-processing/README.md](./document-processing/README.md) for detailed documentation on extractors, chunking strategies, and customization options.
 
@@ -592,6 +627,40 @@ See [document-processing/README.md](./document-processing/README.md) for detaile
 - **Code Search**: Find similar code snippets semantically (not just keyword matching)
 - **Document Q&A**: Question-answering over large document collections
 - **Image Text Search**: OCR + search through scanned documents and images
+
+### Example: FAQ Chatbot
+
+```typescript
+// Index FAQs
+const faqs = [
+  { q: "How do I reset password?", a: "Go to settings and click reset..." },
+  { q: "Where is my order?", a: "Check tracking in your account..." },
+];
+
+for (const faq of faqs) {
+  await manager.addDocument(faq.q + " " + faq.a, `faq_${faq.id}`);
+}
+
+// Match user questions semantically
+const matches = await manager.search(userQuestion, 3);
+const bestMatch = matches[0];
+console.log(`Best match: ${bestMatch.text}`);
+```
+
+### Example: Knowledge Base
+
+```typescript
+// Index documentation from API
+const docs = await fetch('/api/docs').then(r => r.json());
+
+for (const doc of docs) {
+  await manager.addDocument(doc.content, doc.id);
+}
+
+// Semantic search
+const results = await manager.search("how to configure authentication", 10);
+results.forEach(r => console.log(r.text));
+```
 
 ## Quick Reference
 
@@ -636,6 +705,449 @@ const totalDocs = await manager.size();
 | `chunkSize` | `1000` | Characters per chunk |
 | `chunkOverlap` | `200` | Overlap between chunks |
 | `enableOCRFallback` | `true` | OCR for scanned PDFs/images |
+| `clearOnInit` | `true` | Clear IndexedDB on initialization (set `false` for persistence) |
+
+## CRUD Operations
+
+### Update Documents
+
+```typescript
+// Update existing document (regenerates embedding)
+await manager.updateDocument(documentId, 'Updated text content');
+
+// Verify update
+const updatedDoc = await manager.getDocument(documentId);
+console.log(updatedDoc.text); // "Updated text content"
+```
+
+### Delete Documents
+
+**Soft Delete** (fast, marks as deleted but keeps in memory):
+```typescript
+await manager.deleteDocument(documentId);
+```
+
+**Hard Delete** (reclaims memory by compacting index):
+```typescript
+// Delete several documents
+await manager.deleteDocument(id1);
+await manager.deleteDocument(id2);
+
+// Compact index to permanently remove deleted nodes
+await manager.compactIndex();
+```
+
+**When to Compact:**
+- Deleted nodes exceed 20-30% of total nodes
+- Memory usage is a concern
+- Application is idle (compaction is expensive)
+
+### Check Document Status
+
+```typescript
+// Check if document exists
+const exists = await manager.hasDocument(documentId);
+
+// Get index statistics
+const stats = await manager.getStats();
+console.log(`Total: ${stats.totalNodes}, Active: ${stats.activeNodes}, Deleted: ${stats.deletedNodes}`);
+```
+
+### Performance Characteristics
+
+| Operation | Time Complexity | Notes |
+|-----------|----------------|-------|
+| Add Document | O(log n) | Includes embedding generation + HNSW insertion |
+| Update Document | O(log n) | Re-embedding + update connections in graph |
+| Soft Delete | O(1) | Just marks node as deleted |
+| Hard Delete (Compact) | O(n log n) | Rebuilds entire index |
+| Search | O(log n) | HNSW approximate nearest neighbor search |
+
+## Persistence & Index Management
+
+### Enabling Persistence
+
+By default, IndexedDB is cleared on initialization. To persist data across sessions:
+
+```typescript
+const manager = new VectorSearchManager({
+  indexConfig: {
+    useIndexedDB: true,
+    clearOnInit: false  // Enable persistence
+  }
+});
+
+// Wait for async initialization
+await new Promise(resolve => setTimeout(resolve, 100));
+
+// Check if persisted data was loaded
+const size = await manager.size();
+console.log(`Loaded ${size} documents from persistence`);
+```
+
+### Saving and Loading Index
+
+```typescript
+// Save index structure (graph topology)
+await manager.index.saveIndex();
+
+// Load persisted index (automatic if clearOnInit: false)
+const persistedData = await manager.index.loadPersistedIndex();
+if (persistedData) {
+  console.log('Index loaded from persistence');
+}
+```
+
+### Storage Size Estimates
+
+| Index Size | Graph Structure | Total Storage |
+|------------|------------------|---------------|
+| 1k nodes | ~100-500KB | ~2-5MB |
+| 10k nodes | ~1-5MB | ~15-20MB |
+| 100k nodes | ~10-50MB | ~150-200MB |
+
+**What's Stored:**
+- **Embeddings**: Always persisted in IndexedDB `mememo` table (when `useIndexedDB: true`)
+- **Graph Structure**: Persisted in `indexMetadata` table (when `clearOnInit: false`)
+- **Text Documents**: Persisted in `ContentStore` (IndexedDB)
+
+### Best Practices for Persistence
+
+```typescript
+// 1. Always save after bulk operations
+for (const doc of manyDocs) {
+  await manager.addDocument(doc.text, doc.id);
+}
+await manager.index.saveIndex(); // Don't forget!
+
+// 2. Use incremental saves for large indexes with small changes
+await manager.index.incrementalSaveIndex(); // 90% faster than full save
+
+// 3. Enable autosave for automatic background persistence
+manager.index.setAutosave(true, 5000); // Auto-save with 5s debounce
+```
+
+## Progress Callbacks
+
+Track embedding progress for user feedback during long-running operations:
+
+### Model Loading Progress
+
+```typescript
+import { DefaultEmbeddingEngine } from './embeddings/EmbeddingPipeline';
+
+const engine = new DefaultEmbeddingEngine((progress) => {
+  console.log(`Model loading: ${progress.status} - ${Math.round(progress.progress * 100)}%`);
+});
+
+const manager = new VectorSearchManager({ embeddingEngine: engine });
+```
+
+### Embedding Progress
+
+```typescript
+await manager.addDocument(
+  'Document text',
+  'doc-1',
+  {}, // metadata
+  (progress) => {
+    console.log(`Embedding: ${Math.round(progress * 100)}%`);
+    // Update UI progress bar
+  }
+);
+```
+
+### Batch Processing with Progress
+
+```typescript
+const documents = ['doc1', 'doc2', 'doc3'];
+
+for (let i = 0; i < documents.length; i++) {
+  await manager.addDocument(
+    documents[i],
+    `doc-${i}`,
+    {},
+    (embeddingProgress) => {
+      const overallProgress = ((i + embeddingProgress) / documents.length) * 100;
+      console.log(`Overall: ${Math.round(overallProgress)}%`);
+    }
+  );
+}
+```
+
+**Progress Stages:**
+- **0%** - Operation started
+- **30%** - Model loaded (if needed)
+- **90%** - Embedding computed
+- **100%** - Operation complete
+
+*Note: After first embedding, model stays loaded, so subsequent embeddings skip 0-30% stage.*
+
+## Advanced Storage Management
+
+### Monitor Storage Usage
+
+```typescript
+// Check document count
+const total = await manager.size();
+const allDocs = await manager.contentStore.documents.toArray();
+const totalBytes = allDocs.reduce((sum, d) => sum + d.text.length, 0);
+
+console.log(`Documents: ${total}`);
+console.log(`Size: ${(totalBytes / 1024 / 1024).toFixed(2)} MB`);
+
+// Check browser storage quota
+if (navigator.storage?.estimate) {
+  const { usage, quota } = await navigator.storage.estimate();
+  console.log(`Used: ${((usage/quota)*100).toFixed(1)}%`);
+}
+```
+
+### Export and Backup
+
+```typescript
+// Export all documents
+const backup = await manager.contentStore.documents.toArray();
+const json = JSON.stringify(backup, null, 2);
+// Save to file or server
+
+// Restore from backup
+const restored = JSON.parse(backupJson);
+for (const doc of restored) {
+  await manager.addDocument(doc.text, doc.id);
+}
+```
+
+### Advanced ContentStore Queries
+
+Since ContentStore extends Dexie, you can use all Dexie query features:
+
+```typescript
+// Filter documents
+const filtered = await manager.contentStore.documents
+  .filter(doc => doc.text.includes('machine learning'))
+  .toArray();
+
+// Limit results
+const first10 = await manager.contentStore.documents
+  .limit(10)
+  .toArray();
+
+// Count documents
+const count = await manager.contentStore.documents.count();
+
+// Iterate with cursor
+await manager.contentStore.documents.each(doc => {
+  console.log(doc.id);
+});
+```
+
+## React Integration
+
+### Custom Hook Example
+
+```javascript
+import { useState, useEffect } from 'react';
+import VectorSearchManager from 'flux-vector/embeddings/VectorSearchManager';
+
+export function useVectorSearch() {
+  const [searchManager, setSearchManager] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [indexSize, setIndexSize] = useState(0);
+
+  useEffect(() => {
+    const initSearch = async () => {
+      const manager = new VectorSearchManager({
+        indexConfig: {
+          distanceFunction: 'cosine-normalized',
+          useIndexedDB: true,
+          clearOnInit: false  // Enable persistence
+        }
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const size = await manager.size();
+      setIndexSize(size);
+      setSearchManager(manager);
+      setLoading(false);
+    };
+
+    initSearch();
+
+    return () => {
+      if (searchManager) {
+        searchManager.index.saveIndex().catch(console.error);
+      }
+    };
+  }, []);
+
+  const addDocument = async (text, id) => {
+    if (!searchManager) return;
+    const docId = await searchManager.addDocument(text, id);
+    await searchManager.index.saveIndex();
+    setIndexSize(await searchManager.size());
+    return docId;
+  };
+
+  const search = async (query, k = 5) => {
+    if (!searchManager) return [];
+    return await searchManager.search(query, k);
+  };
+
+  return { searchManager, loading, indexSize, addDocument, search };
+}
+```
+
+### Component Example
+
+```javascript
+import React, { useState } from 'react';
+import { useVectorSearch } from './hooks/useVectorSearch';
+
+function SemanticSearch() {
+  const { loading, indexSize, search } = useVectorSearch();
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+
+  const handleSearch = async () => {
+    if (!query.trim()) return;
+    const searchResults = await search(query, 10);
+    setResults(searchResults);
+  };
+
+  if (loading) return <div>Loading semantic search index...</div>;
+
+  return (
+    <div>
+      <p>{indexSize} documents indexed</p>
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+      />
+      <button onClick={handleSearch}>Search</button>
+      {results.map((result, i) => (
+        <div key={result.key}>
+          <p>Similarity: {(1 - result.distance).toFixed(3)}</p>
+          <p>{result.text.substring(0, 200)}...</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## Best Practices
+
+### ID Strategy
+```typescript
+// ✅ Good: Descriptive, unique IDs
+await manager.addDocument(text, "whitepaper_2024_intro");
+await manager.addDocument(text, "faq_question_42");
+
+// ❌ Avoid: Generic IDs unless auto-generated
+await manager.addDocument(text, "1"); // Too generic
+```
+
+### Batch Processing
+```typescript
+// ✅ Good: Process in batches
+for (let i = 0; i < files.length; i += 10) {
+  const batch = files.slice(i, i + 10);
+  await Promise.all(batch.map(f => processFile(f)));
+}
+
+// ❌ Avoid: All at once (memory issues)
+await Promise.all(files.map(f => processFile(f)));
+```
+
+### Error Handling
+```typescript
+// ✅ Good: Handle errors gracefully
+for (const chunk of chunks) {
+  try {
+    await manager.addDocument(chunk.text, id);
+  } catch (error) {
+    console.error(`Failed: ${id}`, error);
+    // Continue with others
+  }
+}
+```
+
+### Index Maintenance
+```typescript
+// Monitor and compact when needed
+const stats = await manager.getStats();
+if (stats.deletedNodes > stats.totalNodes * 0.25) {
+  console.log('Compacting index...');
+  await manager.compactIndex();
+}
+```
+
+### Storage Monitoring
+```typescript
+// Check usage before adding large batches
+if (navigator.storage?.estimate) {
+  const { usage, quota } = await navigator.storage.estimate();
+  const percentUsed = (usage / quota) * 100;
+  if (percentUsed > 80) {
+    console.warn('Storage almost full:', percentUsed.toFixed(1) + '%');
+  }
+}
+```
+
+## Troubleshooting
+
+### No Search Results?
+```typescript
+const count = await manager.size();
+console.log(`Documents indexed: ${count}`);
+if (count === 0) {
+  console.log('No documents indexed yet');
+}
+```
+
+### Out of Storage?
+```typescript
+if (navigator.storage?.estimate) {
+  const { usage, quota } = await navigator.storage.estimate();
+  const percentUsed = (usage / quota) * 100;
+  if (percentUsed > 80) {
+    console.warn(`Storage ${percentUsed.toFixed(1)}% full`);
+    // Clear old data or prompt user
+  }
+}
+```
+
+### Slow Processing?
+```typescript
+// Disable OCR if not needed
+const processor = new DocumentProcessor({
+  extractorConfig: { enableOCRFallback: false }
+});
+
+// Process in batches to avoid memory issues
+for (let i = 0; i < files.length; i += 10) {
+  const batch = files.slice(i, i + 10);
+  await processBatch(batch);
+  await new Promise(resolve => setTimeout(resolve, 100)); // GC pause
+}
+```
+
+### Persistence Not Working?
+1. Verify `clearOnInit: false` is set
+2. Check that `saveIndex()` was called before closing
+3. Ensure `useIndexedDB: true` (can't persist in-memory)
+4. Wait for async initialization: `await new Promise(resolve => setTimeout(resolve, 100))`
+
+### High Memory Usage?
+```typescript
+// Check deleted nodes
+const stats = await manager.getStats();
+if (stats.deletedNodes > stats.totalNodes * 0.25) {
+  await manager.compactIndex(); // Reclaim memory
+}
+```
 
 ## Browser Compatibility
 
