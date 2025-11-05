@@ -1,26 +1,82 @@
 {
   "name": "flux-vector",
   "version": "1.0.0",
-  "description": "",
+  "description": "Lightweight browser-based semantic search library with HNSW vector index and transformer embeddings",
   "main": "dist/index.js",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./embeddings": {
+      "import": "./dist/embeddings/index.js",
+      "types": "./dist/embeddings/index.d.ts"
+    },
+    "./document-processing": {
+      "import": "./dist/document-processing/index.js",
+      "types": "./dist/document-processing/index.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/embeddings/**/*",
+    "dist/document-processing/**/*",
+    "dist/mememo/src/**/*",
+    "dist/index.js",
+    "dist/index.d.ts",
+    "README.md",
+    "ARCHITECTURE.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:verbose": "jest --verbose"
   },
+  "keywords": [
+    "vector-search",
+    "semantic-search",
+    "embeddings",
+    "hnsw",
+    "vector-database",
+    "similarity-search",
+    "nlp",
+    "machine-learning",
+    "transformers",
+    "indexeddb",
+    "browser",
+    "rag",
+    "document-processing",
+    "pdf",
+    "ocr"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "bugs": {
+    "url": ""
+  },
+  "homepage": "",
   "dependencies": {
     "@datastructures-js/heap": "^4.3.7",
     "@huggingface/transformers": "3.1.0",
     "d3-random": "^3.0.1",
     "dexie": "^4.2.1",
-    "onnxruntime-node": "1.20.0",
     "pdfjs-dist": "^3.11.174",
     "tesseract.js": "^5.0.4",
     "uuid": "^13.0.0"
+  },
+  "optionalDependencies": {
+    "onnxruntime-node": "1.20.0"
   },
   "overrides": {
     "onnxruntime-common": "1.20.0",
@@ -39,5 +95,8 @@
     "ts-jest": "^29.4.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

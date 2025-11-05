@@ -1,0 +1,73 @@
+{
+  "name": "mememo",
+  "version": "0.1.0",
+  "description": "On-device vector database",
+  "main": "./dist/index.umd.js",
+  "module": "./dist/index.es.js",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.umd.js",
+      "import": "./dist/index.es.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/poloclub/mememo"
+  },
+  "keywords": [
+    "machine-learning",
+    "machine",
+    "learning",
+    "ai",
+    "matrix",
+    "matrix multiplication",
+    "linear algebra",
+    "math"
+  ],
+  "author": "Jay Wang",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/poloclub/mememo/issues"
+  },
+  "homepage": "https://github.com/poloclub/mememo#readme",
+  "scripts": {
+    "test": "vitest test/mememo.test.ts",
+    "test:browser": "vitest -c vitest.config.browser.ts test/mememo.browser.test.ts",
+    "test:run": "vitest run test/mememo.test.ts && npm run test:run:browser",
+    "test:run:browser": "vitest run -c vitest.config.browser.ts test/mememo.browser.test.ts",
+    "coverage": "vitest run --coverage && c8 report && pnpm run coverage:badge",
+    "coverage:badge": "pnpx make-coverage-badge --output-path ./imgs/coverage-badge.svg",
+    "build": "pnpm run clean && vite build",
+    "build:doc": "pnpm typedoc ./src/index.ts --excludeExternals --externalPattern 'node_modules'  --name 'WebSHAP' --out './gh-pages/doc/' '$SRC_DIR'",
+    "clean": "rimraf ./dist",
+    "publish": "pnpm publish --access=public"
+  },
+  "devDependencies": {
+    "@datastructures-js/heap": "^4.3.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/d3-random": "^3.0.3",
+    "@typescript-eslint/eslint-plugin": "^6.19.1",
+    "@typescript-eslint/parser": "^6.19.1",
+    "@vitest/browser": "^1.2.1",
+    "@vitest/coverage-v8": "^1.2.1",
+    "@xiaohk/utils": "^0.0.6",
+    "c8": "^9.1.0",
+    "d3-random": "^3.0.1",
+    "dexie": "^3.2.4",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.3",
+    "fake-indexeddb": "^6.2.4",
+    "idb": "^8.0.0",
+    "prettier": "^3.2.4",
+    "rimraf": "^5.0.5",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.12",
+    "vitest": "^1.2.1",
+    "webdriverio": "^8.29.1"
+  }
+}

@@ -1,0 +1,246 @@
+.page {
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+
+  --background-color: hsl(206, 75%, 17%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.svg-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 1em;
+  height: 1em;
+
+  transition: transform 80ms linear;
+  transform-origin: center;
+
+  & svg {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.main-app {
+  display: grid;
+  grid-template-columns: 1fr min-content 1fr;
+  grid-template-rows: 1fr min-content 1fr;
+  height: 100vh;
+  /* height: calc(100vh - 5px); */
+  /* max-height: 820px; */
+  width: 100vw;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  position: relative;
+  background-color: var(--background-color);
+}
+
+.text-left {
+  grid-row: 2/3;
+  grid-column: 1/2;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 50px;
+  padding-right: 12px;
+  color: #e0e0e0;
+}
+
+.app-wrapper {
+  grid-row: 2/3;
+  grid-column: 2/3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  max-height: 950px;
+
+  & mememo-playground {
+    border-radius: 10px;
+    /* border: 1px solid var(--gray-400); */
+    background-color: white;
+
+    width: min(1300px, 100vw - 100px);
+    /* height: min(800px, 100vh - 100px); */
+    height: min(750px, 100vh - 100px);
+  }
+
+  .app-title {
+    color: white;
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 0 10px 8px;
+    user-select: none;
+    -webkit-user-select: none;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    .title-left {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .app-title {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .app-info {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .app-name {
+      font-size: 32px;
+      font-weight: 800;
+    }
+
+    .app-tagline {
+      font-size: 26px;
+      font-weight: 200;
+      color: #fff;
+      display: flex;
+      flex-flow: row;
+
+      & a {
+        color: unset;
+        font-style: unset;
+        text-decoration: unset;
+      }
+
+      .mememo-logo {
+        margin-left: 9px;
+        display: flex;
+        flex-flow: row;
+        gap: 5px;
+        position: relative;
+
+        &::after {
+          content: '';
+          position: absolute;
+          top: 105%;
+          left: 50%;
+          transform: translate(-50%, 0);
+          width: 105%;
+          height: 2px;
+          background-color: hsla(0, 100%, 100%, 0.5);
+        }
+      }
+    }
+  }
+}
+
+.text-right {
+  grid-row: 2/3;
+  grid-column: 3/4;
+  display: flex;
+  justify-content: flex-start;
+  padding-left: 12px;
+  margin-top: 80px;
+  color: #e0e0e0;
+}
+
+button {
+  all: unset;
+}
+
+.app-tabs {
+  display: flex;
+  flex-direction: row;
+  padding: 10px 0 0 0;
+
+  .splitter {
+    border-right: 1px solid var(--gray-400);
+    margin: 0 15px;
+    width: 0px;
+  }
+
+  a.tab {
+    text-decoration: none;
+  }
+
+  .tab {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    color: white;
+    display: flex;
+    flex-flow: row;
+    gap: 8px;
+
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: none;
+
+    transition: font-weight 100ms linear;
+
+    & button {
+      cursor: pointer;
+      border: 1px solid var(--gray-500);
+      padding: 3px 5px;
+      border-radius: 5px;
+      line-height: 1;
+
+      background-color: color-mix(in lab, white 80%, transparent 20%);
+      color: var(--background-color);
+
+      &::after {
+        content: attr(data-text);
+        height: 0;
+        visibility: hidden;
+        pointer-events: none;
+        overflow: hidden;
+        font-weight: 700;
+      }
+
+      &:hover {
+        background-color: color-mix(in lab, white 70%, transparent 30%);
+      }
+
+      &:active {
+        background-color: color-mix(in lab, white 60%, transparent 40%);
+      }
+
+      &[selected] {
+        font-weight: 800;
+        color: white;
+        border: 2px solid var(--gray-200);
+        background-color: color-mix(in lab, white 10%, transparent 90%);
+
+        &::before {
+          content: '';
+          z-index: -1;
+          width: 108%;
+          position: absolute;
+          bottom: -4px;
+          left: 50%;
+          transform: translate(-50%, 0);
+
+          border-radius: 5px;
+        }
+      }
+    }
+  }
+}
