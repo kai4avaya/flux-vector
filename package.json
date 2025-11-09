@@ -1,6 +1,6 @@
 {
   "name": "flux-vector",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Lightweight browser-based semantic search library with HNSW vector index and transformer embeddings",
   "main": "dist/index.js",
   "module": "dist/index.js",
