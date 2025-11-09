@@ -93,7 +93,7 @@ export class PDFExtractor implements IDocumentExtractor {
 
       // If no text extracted and OCR fallback is enabled
       if ((!fullText.trim() || fullText.trim().length < 10) && this.config.enableOCRFallback) {
-        console.log('PDF text extraction yielded minimal results, attempting OCR fallback...');
+        // PDF text extraction yielded minimal results, attempting OCR fallback
         // OCR fallback would be implemented here
         // For now, return what we have
       }
@@ -180,11 +180,8 @@ export class ImageExtractor implements IDocumentExtractor {
         imageData,
         this.config.ocrConfig?.languages?.join('+') || 'eng',
         {
-          logger: (m: any) => {
-            if (m.status === 'recognizing text') {
-              console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
-            }
-          }
+          // Logger removed to reduce terminal noise during testing
+          // OCR progress can be monitored via progress callbacks if needed
         }
       );
 
@@ -238,7 +235,7 @@ export class DocumentExtractionManager {
     // Try custom extractors first
     for (const extractor of this.customExtractors.values()) {
       if (extractor.canHandle(mimeType)) {
-        console.log(`Using custom extractor: ${extractor.constructor.name}`);
+        // Using custom extractor
         return await extractor.extract(file, options);
       }
     }
@@ -246,7 +243,7 @@ export class DocumentExtractionManager {
     // Try default extractors
     for (const extractor of this.extractors) {
       if (extractor.canHandle(mimeType)) {
-        console.log(`Using extractor: ${extractor.constructor.name}`);
+        // Using default extractor
         return await extractor.extract(file, options);
       }
     }

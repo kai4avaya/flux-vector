@@ -10,20 +10,51 @@ export interface IDocument {
   metadata?: Record<string, any>; // Optional metadata
 }
 
+/**
+ * Interface for document summaries.
+ */
+export interface ISummary {
+  id: string; // Same as document id (primary key)
+  documentId: string; // Foreign key reference to documents.id
+  summaryText: string;
+  summaryEmbedding: number[]; // Embedding of the summary
+  model: string; // Model used for summarization
+  createdAt: number; // Timestamp
+  metadata?: Record<string, any>;
+}
+
 export class ContentStore extends Dexie {
   /**
    * Defines the 'documents' table with an 'id' primary key.
    */
   documents: Table<IDocument, string>; // <Type, KeyType>
 
+  /**
+   * Defines the 'summaries' table with an 'id' primary key.
+   */
+  summaries: Table<ISummary, string>; // <Type, KeyType>
+
   constructor() {
     super("MyContentDatabase");
+    
+    // Version 1: Initial schema with documents only
     this.version(1).stores({
       // We use 'id' as the primary key, not '++id',
       // because we supply our own UUID string.
       documents: "id, text",
     });
+    
+    // Version 2: Add summaries table
+    this.version(2).stores({
+      documents: "id, text",
+      summaries: "id, documentId, createdAt",
+    }).upgrade(async (tx) => {
+      // Migration: No data migration needed, just schema update
+      console.log('Upgrading ContentStore to version 2: Added summaries table');
+    });
+    
     this.documents = this.table("documents");
+    this.summaries = this.table("summaries");
   }
 
   /**
@@ -89,5 +120,70 @@ export class ContentStore extends Dexie {
    */
   async clear(): Promise<void> {
     await this.documents.clear();
+    await this.summaries.clear();
+  }
+
+  // ========== Summary Methods ==========
+
+  /**
+   * Add or replace a summary in the store.
+   * @param summary The summary object to store.
+   */
+  async addSummary(summary: ISummary): Promise<string> {
+    return await this.summaries.put(summary);
+  }
+
+  /**
+   * Get a summary by document ID.
+   * @param documentId The document ID to get the summary for.
+   */
+  async getSummary(documentId: string): Promise<ISummary | undefined> {
+    return await this.summaries.get(documentId);
+  }
+
+  /**
+   * Update an existing summary.
+   * @param documentId The document ID.
+   * @param updates Partial summary object with fields to update.
+   */
+  async updateSummary(
+    documentId: string,
+    updates: Partial<Omit<ISummary, 'id' | 'documentId'>>
+  ): Promise<void> {
+    const existing = await this.summaries.get(documentId);
+    if (!existing) {
+      throw new Error(`Summary not found for document: ${documentId}`);
+    }
+    await this.summaries.update(documentId, updates);
+  }
+
+  /**
+   * Delete a summary from the store.
+   * @param documentId The document ID to delete the summary for.
+   */
+  async deleteSummary(documentId: string): Promise<void> {
+    await this.summaries.delete(documentId);
+  }
+
+  /**
+   * Get summaries for multiple documents.
+   * @param documentIds Array of document IDs.
+   */
+  async getSummaries(documentIds: string[]): Promise<(ISummary | undefined)[]> {
+    return await this.summaries.bulkGet(documentIds);
+  }
+
+  /**
+   * Get all summaries in the store.
+   */
+  async getAllSummaries(): Promise<ISummary[]> {
+    return await this.summaries.toArray();
+  }
+
+  /**
+   * Count the total number of summaries in the store.
+   */
+  async countSummaries(): Promise<number> {
+    return await this.summaries.count();
   }
 }

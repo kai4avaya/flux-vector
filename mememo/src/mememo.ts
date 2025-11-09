@@ -93,47 +93,67 @@ interface HNSWConfig {
 }
 
 /**
+ * Doubly linked list node for LRU cache
+ */
+class LRUNode<T> {
+  key: string;
+  value: T;
+  prev: LRUNode<T> | null = null;
+  next: LRUNode<T> | null = null;
+
+  constructor(key: string, value: T) {
+    this.key = key;
+    this.value = value;
+  }
+}
+
+/**
  * LRU (Least Recently Used) Cache for managing in-memory node storage.
  * Automatically evicts least recently accessed items when capacity is reached.
+ * Uses doubly linked list + key map for O(1) operations.
  */
 class LRUCache<T> {
   private capacity: number;
-  private cache: Map<string, T>;
-  private accessOrder: string[]; // Track access order (oldest to newest)
+  private cache: Map<string, LRUNode<T>>; // Key -> Node mapping for O(1) lookup
+  private head: LRUNode<T> | null = null; // Most recently used (MRU)
+  private tail: LRUNode<T> | null = null; // Least recently used (LRU)
 
   constructor(capacity: number) {
     this.capacity = capacity;
-    this.cache = new Map<string, T>();
-    this.accessOrder = [];
+    this.cache = new Map<string, LRUNode<T>>();
   }
 
   /**
-   * Get an item from cache and update its access time
+   * Get an item from cache and update its access time (O(1))
    */
   get(key: string): T | undefined {
-    const value = this.cache.get(key);
-    if (value !== undefined) {
-      // Move to end (most recently used)
-      this._updateAccessOrder(key);
+    const node = this.cache.get(key);
+    if (node === undefined) {
+      return undefined;
     }
-    return value;
+
+    // Move to head (most recently used)
+    this._moveToHead(node);
+    return node.value;
   }
 
   /**
-   * Check if key exists in cache
+   * Check if key exists in cache (O(1))
    */
   has(key: string): boolean {
     return this.cache.has(key);
   }
 
   /**
-   * Set an item in cache, evicting LRU item if at capacity
+   * Set an item in cache, evicting LRU item if at capacity (O(1))
    */
   set(key: string, value: T): void {
-    // If key exists, update it and move to end
-    if (this.cache.has(key)) {
-      this.cache.set(key, value);
-      this._updateAccessOrder(key);
+    const existingNode = this.cache.get(key);
+    
+    if (existingNode !== undefined) {
+      // Update existing node and move to head
+      existingNode.value = value;
+      this._moveToHead(existingNode);
       return;
     }
 
@@ -142,52 +162,110 @@ class LRUCache<T> {
       this._evictLRU();
     }
 
-    // Add new item
-    this.cache.set(key, value);
-    this.accessOrder.push(key);
+    // Create new node and add to head
+    const newNode = new LRUNode<T>(key, value);
+    this._addToHead(newNode);
+    this.cache.set(key, newNode);
   }
 
   /**
-   * Get current cache size
+   * Get current cache size (O(1))
    */
   size(): number {
     return this.cache.size;
   }
 
   /**
-   * Clear all items from cache
+   * Clear all items from cache (O(1))
    */
   clear(): void {
     this.cache.clear();
-    this.accessOrder = [];
+    this.head = null;
+    this.tail = null;
   }
 
   /**
-   * Get all keys in cache
+   * Get all keys in cache (O(n))
    */
   keys(): string[] {
     return Array.from(this.cache.keys());
   }
 
   /**
-   * Update access order by moving key to end (most recent)
+   * Move a node to the head (most recently used) - O(1)
    */
-  private _updateAccessOrder(key: string): void {
-    const index = this.accessOrder.indexOf(key);
-    if (index > -1) {
-      this.accessOrder.splice(index, 1);
+  private _moveToHead(node: LRUNode<T>): void {
+    // If already at head, nothing to do
+    if (node === this.head) {
+      return;
     }
-    this.accessOrder.push(key);
+
+    // Remove node from its current position
+    this._removeNode(node);
+    
+    // Add to head
+    this._addToHead(node);
   }
 
   /**
-   * Evict the least recently used item
+   * Remove a node from the linked list - O(1)
+   */
+  private _removeNode(node: LRUNode<T>): void {
+    if (node.prev !== null) {
+      node.prev.next = node.next;
+    } else {
+      // Node is head
+      this.head = node.next;
+    }
+
+    if (node.next !== null) {
+      node.next.prev = node.prev;
+    } else {
+      // Node is tail
+      this.tail = node.prev;
+    }
+
+    node.prev = null;
+    node.next = null;
+  }
+
+  /**
+   * Add a node to the head (most recently used) - O(1)
+   */
+  private _addToHead(node: LRUNode<T>): void {
+    if (this.head === null) {
+      // First node - both head and tail
+      this.head = node;
+      this.tail = node;
+    } else {
+      // Insert at head
+      node.next = this.head;
+      this.head.prev = node;
+      this.head = node;
+    }
+  }
+
+  /**
+   * Evict the least recently used item (tail) - O(1)
    */
   private _evictLRU(): void {
-    if (this.accessOrder.length === 0) return;
+    if (this.tail === null) {
+      return;
+    }
+
+    const lruNode = this.tail;
+    this.cache.delete(lruNode.key);
     
-    const lruKey = this.accessOrder.shift()!;
-    this.cache.delete(lruKey);
+    if (this.head === this.tail) {
+      // Only one node
+      this.head = null;
+      this.tail = null;
+    } else {
+      // Remove tail
+      this.tail = this.tail.prev!;
+      this.tail.next = null;
+      lruNode.prev = null;
+    }
   }
 }
 
@@ -343,13 +421,6 @@ class NodesInIndexedDB {
   }
 
   async get(key: string, level: number) {
-    console.log(`NodesInIndexedDB.get: Called with key=${key}, level=${level}, graphLayers length=${this.graphLayers.length}`);
-    console.log(`NodesInIndexedDB.get: graphLayers state:`, this.graphLayers.map((layer, i) => ({
-      level: i,
-      hasKey: layer.graph.has(key),
-      nodeCount: layer.graph.size
-    })));
-
     if (!this.nodesCache.has(key)) {
       // Prefetch the node and its neighbors from indexedDB if the node is not
       // in memory
@@ -439,16 +510,11 @@ class NodesInIndexedDB {
 
     // Bounds check to prevent out of bounds access
     if (level >= this.graphLayers.length || level < 0) {
-      console.warn(`_prefetch: Level ${level} out of bounds for graphLayers length ${this.graphLayers.length}, key: ${key}`);
       return; // Skip prefetch if level out of bounds
     }
 
-    console.log(`_prefetch: Accessing level ${level} for key ${key}, graphLayers length: ${this.graphLayers.length}`);
-
     // BFS traverse starting from current layer
     const graphLayer = this.graphLayers[level];
-    console.log(`_prefetch: graphLayer at level ${level}:`, graphLayer);
-    console.log(`_prefetch: graphLayer.graph:`, graphLayer.graph);
 
     const nodeCandidateCompare: IGetCompareValue<SearchNodeCandidate> = (
       candidate: SearchNodeCandidate
@@ -878,11 +944,9 @@ export class HNSW {
         if (this.nodes instanceof NodesInIndexedDB) {
           this.nodes.graphLayers = this.graphLayers;
         }
-        
-        console.log(`Successfully loaded persisted index from IndexedDB (${this.graphLayers.length} layers)`);
       }
     } catch (error) {
-      console.warn('Failed to initialize from persisted data:', error);
+      // Silently handle initialization errors - fallback to empty index
     } finally {
       // Mark initialization as complete
       this._isInitialized = true;
@@ -946,7 +1010,7 @@ export class HNSW {
       const record = await metadataTable.get('graph');
       return record ? record.data : null;
     } catch (error) {
-      console.warn('Failed to load persisted index:', error);
+      // Silently handle load errors - return null to indicate no persisted data
       return null;
     }
   }
@@ -1817,7 +1881,6 @@ export class HNSW {
    * embeddings from indexedDB
    */
   async _getNodeInfo(key: string, level: number) {
-    console.log(`_getNodeInfo: Getting node ${key} at level ${level}, HNSW graphLayers length: ${this.graphLayers.length}`);
     const node = await this.nodes.get(key, level);
     if (node === undefined) {
       throw Error(`Can't find node with key ${key}`);

@@ -33,25 +33,25 @@ describe('VectorSearchManager', () => {
   describe('addDocument', () => {
     it('should add a document and return an ID', async () => {
       const text = 'This is a test document';
-      const id = await searchManager.addDocument(text);
+      const result = await searchManager.addDocument(text);
 
-      expect(id).toBeDefined();
-      expect(typeof id).toBe('string');
-      expect(id.length).toBeGreaterThan(0);
+      expect(result.documentId).toBeDefined();
+      expect(typeof result.documentId).toBe('string');
+      expect(result.documentId.length).toBeGreaterThan(0);
     });
 
     it('should accept custom IDs', async () => {
       const text = 'Test document';
       const customId = 'my-custom-id-123';
 
-      const returnedId = await searchManager.addDocument(text, customId);
+      const result = await searchManager.addDocument(text, customId);
 
-      expect(returnedId).toBe(customId);
+      expect(result.documentId).toBe(customId);
     });
 
     it('should store document in ContentStore', async () => {
       const text = 'Document to store';
-      const id = await searchManager.addDocument(text);
+      const { documentId: id } = await searchManager.addDocument(text);
 
       const doc = await searchManager.contentStore.documents.get(id);
       expect(doc).toBeDefined();
@@ -77,7 +77,7 @@ describe('VectorSearchManager', () => {
     });
 
     it('should handle empty text', async () => {
-      const id = await searchManager.addDocument('');
+      const { documentId: id } = await searchManager.addDocument('');
       expect(id).toBeDefined();
 
       const doc = await searchManager.contentStore.documents.get(id);
@@ -86,7 +86,7 @@ describe('VectorSearchManager', () => {
 
     it('should handle long text', async () => {
       const longText = 'A'.repeat(10000);
-      const id = await searchManager.addDocument(longText);
+      const { documentId: id } = await searchManager.addDocument(longText);
 
       const doc = await searchManager.contentStore.documents.get(id);
       expect(doc?.text.length).toBe(10000);
@@ -94,7 +94,7 @@ describe('VectorSearchManager', () => {
 
     it('should handle special characters', async () => {
       const specialText = 'Hello 世界! 🚀 Test émojis & symbols @#$%';
-      const id = await searchManager.addDocument(specialText);
+      const { documentId: id } = await searchManager.addDocument(specialText);
 
       const doc = await searchManager.contentStore.documents.get(id);
       expect(doc?.text).toBe(specialText);
@@ -210,8 +210,8 @@ describe('VectorSearchManager', () => {
   describe('integration scenarios', () => {
     it('should handle complete workflow: add -> search -> retrieve', async () => {
       // Add documents
-      const id1 = await searchManager.addDocument('Machine learning is a subset of AI');
-      const id2 = await searchManager.addDocument('Deep learning uses neural networks');
+      const { documentId: id1 } = await searchManager.addDocument('Machine learning is a subset of AI');
+      const { documentId: id2 } = await searchManager.addDocument('Deep learning uses neural networks');
       
       // Search
       const results = await searchManager.search('artificial intelligence', 2);
@@ -341,7 +341,7 @@ describe('VectorSearchManager', () => {
 
   describe('direct ContentStore access', () => {
     it('should allow direct access to ContentStore', async () => {
-      const id = await searchManager.addDocument('Direct access test');
+      const { documentId: id } = await searchManager.addDocument('Direct access test');
 
       // Access via public contentStore property
       const doc = await searchManager.contentStore.documents.get(id);

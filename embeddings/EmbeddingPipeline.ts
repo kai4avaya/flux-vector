@@ -5,6 +5,8 @@ import {
   FeatureExtractionPipelineOptions,
   ProgressCallback,
 } from "@huggingface/transformers";
+import { WorkerManager, WorkerTaskType } from "../workers";
+import type { EmbedTaskPayload } from "../workers/worker-types";
 
 /**
  * Interface for custom embedding engines.
@@ -46,12 +48,28 @@ class EmbeddingPipeline {
 /**
  * Default embedding engine using HuggingFace transformers.
  * Uses Xenova/all-MiniLM-L6-v2 model which produces 384-dimension embeddings.
+ * Supports running in worker or main thread (with fallback).
  */
 export class DefaultEmbeddingEngine implements IEmbeddingEngine {
   private modelLoadCallback?: ProgressCallback;
-  
-  constructor(modelLoadCallback?: ProgressCallback) {
+  private useWorker: boolean;
+  private workerManager?: WorkerManager;
+
+  constructor(
+    modelLoadCallback?: ProgressCallback,
+    useWorker: boolean = true
+  ) {
     this.modelLoadCallback = modelLoadCallback;
+    this.useWorker = useWorker;
+    
+    if (useWorker) {
+      try {
+        this.workerManager = WorkerManager.getInstance();
+      } catch (error) {
+        console.warn('Failed to initialize worker manager, falling back to main thread:', error);
+        this.useWorker = false;
+      }
+    }
   }
   
   /**
@@ -61,6 +79,51 @@ export class DefaultEmbeddingEngine implements IEmbeddingEngine {
    * @returns The 384-dimension embedding.
    */
   async embed(text: string, progressCallback?: (progress: number) => void): Promise<number[]> {
+    // Try worker mode first if enabled
+    if (this.useWorker && this.workerManager?.isAvailable()) {
+      try {
+        return await this.embedInWorker(text, progressCallback);
+      } catch (error) {
+        console.warn('Worker embedding failed, falling back to main thread:', error);
+        // Fall through to main thread fallback
+      }
+    }
+
+    // Fallback to main thread
+    return await this.embedInMainThread(text, progressCallback);
+  }
+
+  /**
+   * Embed using worker (non-blocking)
+   */
+  private async embedInWorker(
+    text: string,
+    progressCallback?: (progress: number) => void
+  ): Promise<number[]> {
+    if (!this.workerManager) {
+      throw new Error('Worker manager not available');
+    }
+
+    const payload: EmbedTaskPayload = {
+      text,
+    };
+
+    return await this.workerManager.execute<number[]>(
+      {
+        task: WorkerTaskType.EMBED,
+        payload,
+      },
+      progressCallback
+    );
+  }
+
+  /**
+   * Embed in main thread (fallback)
+   */
+  private async embedInMainThread(
+    text: string,
+    progressCallback?: (progress: number) => void
+  ): Promise<number[]> {
     // Report start
     progressCallback?.(0);
     

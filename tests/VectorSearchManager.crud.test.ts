@@ -26,7 +26,7 @@ describe('VectorSearchManager CRUD Operations', () => {
   describe('deleteDocument', () => {
     it('should delete a document from both store and index', async () => {
       // Add a document
-      const id = await manager.addDocument('Test document to delete');
+      const { documentId: id } = await manager.addDocument('Test document to delete');
       
       // Verify it exists
       const doc = await manager.getDocument(id);
@@ -57,8 +57,8 @@ describe('VectorSearchManager CRUD Operations', () => {
 
     it('should exclude deleted documents from search results', async () => {
       // Add multiple documents
-      const id1 = await manager.addDocument('The cat sat on the mat');
-      const id2 = await manager.addDocument('The dog ran in the park');
+      const { documentId: id1 } = await manager.addDocument('The cat sat on the mat');
+      const { documentId: id2 } = await manager.addDocument('The dog ran in the park');
       await manager.addDocument('The bird flew in the sky');
       
       // Delete one document
@@ -74,7 +74,8 @@ describe('VectorSearchManager CRUD Operations', () => {
     it('should handle multiple deletions', async () => {
       const ids = [];
       for (let i = 0; i < 5; i++) {
-        ids.push(await manager.addDocument(`Document ${i}`));
+        const result = await manager.addDocument(`Document ${i}`);
+        ids.push(result.documentId);
       }
       
       // Delete first 3
@@ -91,7 +92,7 @@ describe('VectorSearchManager CRUD Operations', () => {
   describe('updateDocument', () => {
     it('should update document text and re-embed', async () => {
       // Add initial document
-      const id = await manager.addDocument('Original text');
+      const { documentId: id } = await manager.addDocument('Original text');
       
       // Update it
       await manager.updateDocument(id, 'Updated text');
@@ -112,7 +113,7 @@ describe('VectorSearchManager CRUD Operations', () => {
 
     it('should update search results after document update', async () => {
       // Add documents
-      const id1 = await manager.addDocument('The cat sat on the mat');
+      const { documentId: id1 } = await manager.addDocument('The cat sat on the mat');
       await manager.addDocument('The dog ran in the park');
       
       // Search for 'cat'
@@ -129,7 +130,7 @@ describe('VectorSearchManager CRUD Operations', () => {
     });
 
     it('should handle multiple updates to same document', async () => {
-      const id = await manager.addDocument('Version 1');
+      const { documentId: id } = await manager.addDocument('Version 1');
       
       await manager.updateDocument(id, 'Version 2');
       let doc = await manager.getDocument(id);
@@ -154,7 +155,8 @@ describe('VectorSearchManager CRUD Operations', () => {
       // Add documents
       const ids = [];
       for (let i = 0; i < 10; i++) {
-        ids.push(await manager.addDocument(`Document ${i}`));
+        const result = await manager.addDocument(`Document ${i}`);
+        ids.push(result.documentId);
       }
       
       // Delete half of them (soft delete)
@@ -180,9 +182,9 @@ describe('VectorSearchManager CRUD Operations', () => {
 
     it('should maintain search functionality after compaction', async () => {
       // Add documents
-      const id1 = await manager.addDocument('The cat sat on the mat');
-      const id2 = await manager.addDocument('The dog ran in the park');
-      const id3 = await manager.addDocument('The bird flew in the sky');
+      const { documentId: id1 } = await manager.addDocument('The cat sat on the mat');
+      const { documentId: id2 } = await manager.addDocument('The dog ran in the park');
+      const { documentId: id3 } = await manager.addDocument('The bird flew in the sky');
       
       // Delete one
       await manager.deleteDocument(id2);
@@ -206,6 +208,7 @@ describe('VectorSearchManager CRUD Operations', () => {
 
     it('should handle compaction with no deleted nodes', async () => {
       // Add documents without deleting any
+      // Add documents (no need to track IDs for this test)
       await manager.addDocument('Document 1');
       await manager.addDocument('Document 2');
       await manager.addDocument('Document 3');
@@ -229,7 +232,7 @@ describe('VectorSearchManager CRUD Operations', () => {
 
   describe('hasDocument', () => {
     it('should return true for existing active document', async () => {
-      const id = await manager.addDocument('Test document');
+      const { documentId: id } = await manager.addDocument('Test document');
       const exists = await manager.hasDocument(id);
       expect(exists).toBe(true);
     });
@@ -240,7 +243,7 @@ describe('VectorSearchManager CRUD Operations', () => {
     });
 
     it('should return false for deleted document', async () => {
-      const id = await manager.addDocument('Test document');
+      const { documentId: id } = await manager.addDocument('Test document');
       await manager.deleteDocument(id);
       
       const exists = await manager.hasDocument(id);
@@ -250,7 +253,7 @@ describe('VectorSearchManager CRUD Operations', () => {
 
   describe('getDocument', () => {
     it('should retrieve document by ID', async () => {
-      const id = await manager.addDocument('Test content');
+      const { documentId: id } = await manager.addDocument('Test content');
       const doc = await manager.getDocument(id);
       
       expect(doc).toBeDefined();
@@ -264,7 +267,7 @@ describe('VectorSearchManager CRUD Operations', () => {
     });
 
     it('should return undefined after deletion', async () => {
-      const id = await manager.addDocument('Test content');
+      const { documentId: id } = await manager.addDocument('Test content');
       await manager.deleteDocument(id);
       
       const doc = await manager.getDocument(id);
@@ -277,7 +280,8 @@ describe('VectorSearchManager CRUD Operations', () => {
       // Add documents
       const ids = [];
       for (let i = 0; i < 5; i++) {
-        ids.push(await manager.addDocument(`Document ${i}`));
+        const result = await manager.addDocument(`Document ${i}`);
+        ids.push(result.documentId);
       }
       
       // Delete some
@@ -301,9 +305,9 @@ describe('VectorSearchManager CRUD Operations', () => {
   describe('Complex workflows', () => {
     it('should handle add -> update -> delete -> compact workflow', async () => {
       // Add
-      const id1 = await manager.addDocument('Document 1');
-      const id2 = await manager.addDocument('Document 2');
-      const id3 = await manager.addDocument('Document 3');
+      const { documentId: id1 } = await manager.addDocument('Document 1');
+      const { documentId: id2 } = await manager.addDocument('Document 2');
+      const { documentId: id3 } = await manager.addDocument('Document 3');
       
       // Update
       await manager.updateDocument(id2, 'Updated Document 2');
@@ -340,7 +344,8 @@ describe('VectorSearchManager CRUD Operations', () => {
       
       // Add 10 documents
       for (let i = 0; i < 10; i++) {
-        ids.push(await manager.addDocument(`Document ${i}`));
+        const result = await manager.addDocument(`Document ${i}`);
+        ids.push(result.documentId);
       }
       
       // Delete odd-numbered documents
@@ -350,7 +355,8 @@ describe('VectorSearchManager CRUD Operations', () => {
       
       // Add 5 more documents
       for (let i = 10; i < 15; i++) {
-        ids.push(await manager.addDocument(`Document ${i}`));
+        const result = await manager.addDocument(`Document ${i}`);
+        ids.push(result.documentId);
       }
       
       // Stats should show mixed state
@@ -369,7 +375,8 @@ describe('VectorSearchManager CRUD Operations', () => {
       // Add all documents
       const ids: string[] = [];
       for (const data of testData) {
-        ids.push(await manager.addDocument(data.text));
+        const result = await manager.addDocument(data.text);
+        ids.push(result.documentId);
       }
       
       // Verify search works

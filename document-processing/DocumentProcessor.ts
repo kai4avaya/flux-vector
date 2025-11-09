@@ -94,14 +94,14 @@ export class DocumentProcessor {
     const startTime = Date.now();
     
     // Step 1: Extract text from document
-    console.log(`Extracting text from document (${mimeType})...`);
+    // Extracting text from document
     const extractedText = await this.extractionManager.extractText(
       file,
       mimeType,
       this.config.extractorConfig
     );
     
-    console.log(`Extracted ${extractedText.length} characters in ${Date.now() - startTime}ms`);
+    // Text extraction completed
     
     // If chunking is skipped, return single chunk
     if (options?.skipChunking) {
@@ -125,14 +125,14 @@ export class DocumentProcessor {
                             this.config.defaultChunkingStrategy || 
                             'default';
     
-    console.log(`Chunking text using strategy: ${chunkingStrategy}...`);
+    // Chunking text
     const chunks = this.chunkingManager.chunk(
       extractedText,
       chunkingStrategy,
       options?.chunkingConfig || this.config.chunkingConfig
     );
     
-    console.log(`Created ${chunks.length} chunks`);
+    // Chunking completed
     
     // Step 3: Create processed chunks with metadata
     const metadata: DocumentMetadata = {

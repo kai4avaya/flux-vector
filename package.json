@@ -25,6 +25,7 @@
     "dist/embeddings/**/*",
     "dist/document-processing/**/*",
     "dist/mememo/src/**/*",
+    "dist/workers/**/*",
     "dist/index.js",
     "dist/index.d.ts",
     "README.md",
@@ -32,7 +33,9 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "npm run build:tsc && npm run build:worker",
+    "build:tsc": "tsc",
+    "build:worker": "rollup -c rollup.worker.config.js",
     "prepublishOnly": "npm run build",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -85,6 +88,9 @@
   },
   "devDependencies": {
     "@jest/globals": "^30.2.0",
+    "@rollup/plugin-commonjs": "^28.0.9",
+    "@rollup/plugin-node-resolve": "^15.3.1",
+    "@rollup/plugin-typescript": "^12.3.0",
     "@types/d3-random": "^3.0.3",
     "@types/dexie": "^1.3.32",
     "@types/jest": "^30.0.0",
@@ -92,6 +98,7 @@
     "@types/uuid": "^10.0.0",
     "fake-indexeddb": "^6.2.4",
     "jest": "^30.2.0",
+    "rollup": "^4.53.1",
     "ts-jest": "^29.4.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"

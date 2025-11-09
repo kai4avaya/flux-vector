@@ -1,3 +1,4 @@
-export { ContentStore, IDocument } from './ContentStore';
+export { ContentStore, IDocument, ISummary } from './ContentStore';
 export { IEmbeddingEngine, DefaultEmbeddingEngine, embed } from './EmbeddingPipeline';
-export { default as VectorSearchManager, ISearchResult, VectorSearchConfig, DEFAULT_CONFIG } from './VectorSearchManager';
+export { ISummarizationEngine, DefaultSummarizationEngine, summarize, SummarizationOptions } from './SummarizationPipeline';
+export { default as VectorSearchManager, ISearchResult, ISummarySearchResult, VectorSearchConfig, DEFAULT_CONFIG } from './VectorSearchManager';

@@ -21,6 +21,11 @@ module.exports = {
       tsconfig: {
         esModuleInterop: true,
         allowSyntheticDefaultImports: true,
+        module: 'ESNext',
+        moduleResolution: 'node',
+        target: 'ES2020',
+        lib: ['ES2020', 'DOM'],
+        skipLibCheck: true,
       }
     }]
   },
